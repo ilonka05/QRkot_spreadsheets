@@ -7,30 +7,32 @@ from app.core.config import settings
 from app.models import CharityProject
 
 FORMAT = '%Y/%m/%d %H:%M:%S'
+SPREADSHEET_BODY = {
+    'properties': {'title': '',
+                   'locale': 'ru_RU'},
+    'sheets': [{'properties': {'sheetType': 'GRID',
+                               'sheetId': 0,
+                               'title': 'Лист1',
+                               'gridProperties': {'rowCount': 100,
+                                                  'columnCount': 11}}}]
+}
 
 
 async def spreadsheets_create(wrapper_services: Aiogoogle) -> str:
     """Функция создания гугл-таблицы с отчётом."""
     now_date_time = datetime.now().strftime(FORMAT)
     service = await wrapper_services.discover('sheets', 'v4')
-    spreadsheet_body = {
-        'properties': {'title': f'Отчёт по закрытым пожертвованиям на {now_date_time}',
-                       'locale': 'ru_RU'},
-        'sheets': [{'properties': {'sheetType': 'GRID',
-                                   'sheetId': 0,
-                                   'title': 'Лист1',
-                                   'gridProperties': {'rowCount': 100,
-                                                      'columnCount': 11}}}]
-    }
+    spreadsheet_body = SPREADSHEET_BODY.copy()
+    spreadsheet_body['properties']['title'] = f'Отчёт по закрытым пожертвованиям на {now_date_time}'
     response = await wrapper_services.as_service_account(
         service.spreadsheets.create(json=spreadsheet_body)
     )
-    spreadsheetid = response['spreadsheetId']
-    return spreadsheetid
+    spreadsheet_id = response['spreadsheetId']
+    return spreadsheet_id
 
 
 async def set_user_permissions(
-        spreadsheetid: str,
+        spreadsheet_id: str,
         wrapper_services: Aiogoogle
 ) -> None:
     """Выдача прав доступа на созданную гугл-таблицу."""
@@ -40,7 +42,7 @@ async def set_user_permissions(
     service = await wrapper_services.discover('drive', 'v3')
     await wrapper_services.as_service_account(
         service.permissions.create(
-            fileId=spreadsheetid,
+            fileId=spreadsheet_id,
             json=permissions_body,
             fields='id'
         )
@@ -48,7 +50,7 @@ async def set_user_permissions(
 
 
 async def spreadsheets_update_value(
-        spreadsheetid: str,
+        spreadsheet_id: str,
         projects_closed: List[CharityProject],
         wrapper_services: Aiogoogle
 ) -> None:
@@ -90,7 +92,7 @@ async def spreadsheets_update_value(
     rows_value = len(table_values)
     await wrapper_services.as_service_account(
         service.spreadsheets.values.update(
-            spreadsheetId=spreadsheetid,
+            spreadsheetId=spreadsheet_id,
             range=f'A1:C{rows_value}',
             valueInputOption='USER_ENTERED',
             json=update_body
@@ -99,7 +101,7 @@ async def spreadsheets_update_value(
 
     await wrapper_services.as_service_account(
         service.spreadsheets.batchUpdate(
-            spreadsheetId=spreadsheetid,
+            spreadsheetId=spreadsheet_id,
             json=format_body
         )
     )
